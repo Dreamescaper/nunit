@@ -579,4 +579,76 @@ namespace NUnit.TestData.OneTimeSetUpTearDownData
             DisposeCalled++;
         }
     }
+
+    public abstract class TypeHierarchyScopeBase
+    {
+        public static int HierarchySetUpCount;
+        public static int HierarchyTearDownCount;
+        public static int FixtureSetUpCount;
+        public static int FixtureTearDownCount;
+
+        public static void Reset()
+        {
+            HierarchySetUpCount = 0;
+            HierarchyTearDownCount = 0;
+            FixtureSetUpCount = 0;
+            FixtureTearDownCount = 0;
+        }
+
+        [OneTimeSetUp(Scope = OneTimeScope.TypeHierarchy)]
+        public static void SetupHierarchy()
+        {
+            HierarchySetUpCount++;
+        }
+
+        [OneTimeTearDown(Scope = OneTimeScope.TypeHierarchy)]
+        public static void TearDownHierarchy()
+        {
+            HierarchyTearDownCount++;
+        }
+
+        [OneTimeSetUp]
+        public void SetupFixture()
+        {
+            FixtureSetUpCount++;
+        }
+
+        [OneTimeTearDown]
+        public void TearDownFixture()
+        {
+            FixtureTearDownCount++;
+        }
+    }
+
+    [TestFixture]
+    public class TypeHierarchyScopeChildOne : TypeHierarchyScopeBase
+    {
+        [Test]
+        public void FirstTest()
+        {
+        }
+    }
+
+    [TestFixture]
+    public class TypeHierarchyScopeChildTwo : TypeHierarchyScopeBase
+    {
+        [Test]
+        public void SecondTest()
+        {
+        }
+    }
+
+    [TestFixture]
+    public class InvalidTypeHierarchyScopeFixture
+    {
+        [OneTimeSetUp(Scope = OneTimeScope.TypeHierarchy)]
+        public void NonStaticHierarchySetUp()
+        {
+        }
+
+        [Test]
+        public void Test()
+        {
+        }
+    }
 }

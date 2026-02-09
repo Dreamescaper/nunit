@@ -62,6 +62,14 @@ namespace NUnit.Framework.Tests.Attributes
         }
 
         [Test]
+        public void TypeHierarchyScopeIsNotAllowed()
+        {
+            var fixtures = new SetUpFixtureAttribute().BuildFrom(new TypeWrapper(typeof(TypeHierarchyScopeSetUpFixture)));
+            foreach (var fixture in fixtures)
+                Assert.That(fixture.RunState, Is.EqualTo(RunState.NotRunnable));
+        }
+
+        [Test]
         public void AttributeUsage_NoInheritance()
         {
             var usageAttrib = Attribute.GetCustomAttribute(typeof(SetUpFixtureAttribute), typeof(AttributeUsageAttribute)) as AttributeUsageAttribute;
@@ -103,6 +111,15 @@ namespace NUnit.Framework.Tests.Attributes
         {
             [TearDown]
             public void SomeMethod()
+            {
+            }
+        }
+
+        [SetUpFixture]
+        private class TypeHierarchyScopeSetUpFixture
+        {
+            [OneTimeSetUp(Scope = OneTimeScope.TypeHierarchy)]
+            public static void SetUp()
             {
             }
         }

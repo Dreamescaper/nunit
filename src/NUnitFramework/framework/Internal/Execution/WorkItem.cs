@@ -374,6 +374,42 @@ namespace NUnit.Framework.Internal.Execution
             return list;
         }
 
+        /// <summary>
+        /// Builds the setup/teardown list for type-hierarchy scoped methods.
+        /// </summary>
+        /// <param name="setUpMethods">Unsorted array of setup MethodInfos.</param>
+        /// <param name="tearDownMethods">Unsorted array of teardown MethodInfos.</param>
+        /// <param name="methodValidator">Method validator used before each method execution.</param>
+        /// <returns>A list of TypeHierarchySetUpTearDownItems</returns>
+        internal List<TypeHierarchySetUpTearDownItem> BuildTypeHierarchySetUpTearDownList(
+            IMethodInfo[] setUpMethods,
+            IMethodInfo[] tearDownMethods,
+            IMethodValidator? methodValidator = null)
+        {
+            ArgumentNullException.ThrowIfNull(setUpMethods);
+            ArgumentNullException.ThrowIfNull(tearDownMethods);
+
+            var list = new List<TypeHierarchySetUpTearDownItem>();
+
+            Type? fixtureType = Test.TypeInfo?.Type;
+            if (fixtureType is null)
+                return list;
+
+            while (fixtureType is not null && fixtureType != typeof(object))
+            {
+                var mySetUpMethods = SelectMethodsByDeclaringType(fixtureType, setUpMethods);
+                var myTearDownMethods = SelectMethodsByDeclaringType(fixtureType, tearDownMethods);
+                var node = new TypeHierarchySetUpTearDownItem(fixtureType, mySetUpMethods, myTearDownMethods, methodValidator);
+
+                if (node.HasMethods)
+                    list.Add(node);
+
+                fixtureType = fixtureType.BaseType;
+            }
+
+            return list;
+        }
+
         // This method builds a list of nodes that can be used to
         // run setup and teardown according to the NUnit specs.
         // We need to execute setup and teardown methods one level

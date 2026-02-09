@@ -143,8 +143,17 @@ namespace NUnit.Framework.Internal.Execution
                     $"Only static OneTimeSetUp and OneTimeTearDown are allowed for {nameof(LifeCycle.InstancePerTestCase)} mode.")
                 : null;
 
+            SplitOneTimeMethodsByScope(_suite.OneTimeSetUpMethods, isSetUp: true, out var fixtureSetUpMethods, out var hierarchySetUpMethods);
+            SplitOneTimeMethodsByScope(_suite.OneTimeTearDownMethods, isSetUp: false, out var fixtureTearDownMethods, out var hierarchyTearDownMethods);
+
             List<SetUpTearDownItem> setUpTearDownItems =
-                BuildSetUpTearDownList(_suite.OneTimeSetUpMethods, _suite.OneTimeTearDownMethods, methodValidator);
+                BuildSetUpTearDownList(fixtureSetUpMethods, fixtureTearDownMethods, methodValidator);
+
+            var hierarchyValidator = new StaticMethodValidator(
+                "OneTimeSetUp and OneTimeTearDown with Scope=TypeHierarchy must be static.");
+
+            List<TypeHierarchySetUpTearDownItem> hierarchySetUpTearDownItems =
+                BuildTypeHierarchySetUpTearDownList(hierarchySetUpMethods, hierarchyTearDownMethods, hierarchyValidator);
 
             var actionItems = new List<TestActionItem>();
             foreach (ITestAction action in Test.Actions)
@@ -174,12 +183,15 @@ namespace NUnit.Framework.Internal.Execution
                     Context.UpstreamActions.Add(action);
             }
 
-            _setupCommand = MakeOneTimeSetUpCommand(setUpTearDownItems, actionItems);
+            _setupCommand = MakeOneTimeSetUpCommand(setUpTearDownItems, hierarchySetUpTearDownItems, actionItems);
 
-            _teardownCommand = MakeOneTimeTearDownCommand(setUpTearDownItems, actionItems);
+            _teardownCommand = MakeOneTimeTearDownCommand(setUpTearDownItems, hierarchySetUpTearDownItems, actionItems);
         }
 
-        private TestCommand MakeOneTimeSetUpCommand(List<SetUpTearDownItem> setUpTearDown, List<TestActionItem> actions)
+        private TestCommand MakeOneTimeSetUpCommand(
+            List<SetUpTearDownItem> setUpTearDown,
+            List<TypeHierarchySetUpTearDownItem> hierarchySetUpTearDown,
+            List<TestActionItem> actions)
         {
             TestCommand command = new EmptyTestCommand(Test);
 
@@ -194,6 +206,9 @@ namespace NUnit.Framework.Internal.Execution
                 foreach (SetUpTearDownItem item in setUpTearDown)
                     command = new OneTimeSetUpCommand(command, item);
 
+                foreach (TypeHierarchySetUpTearDownItem item in hierarchySetUpTearDown)
+                    command = new OneTimeHierarchySetUpCommand(command, item);
+
                 // Construct the fixture if necessary
                 if (!Test.TypeInfo.IsStaticClass && !Test.HasLifeCycle(LifeCycle.InstancePerTestCase))
                     command = new ConstructFixtureCommand(command);
@@ -206,7 +221,10 @@ namespace NUnit.Framework.Internal.Execution
             return command;
         }
 
-        private TestCommand MakeOneTimeTearDownCommand(List<SetUpTearDownItem> setUpTearDownItems, List<TestActionItem> actions)
+        private TestCommand MakeOneTimeTearDownCommand(
+            List<SetUpTearDownItem> setUpTearDownItems,
+            List<TypeHierarchySetUpTearDownItem> hierarchySetUpTearDownItems,
+            List<TestActionItem> actions)
         {
             TestCommand command = new EmptyTestCommand(Test);
 
@@ -227,7 +245,49 @@ namespace NUnit.Framework.Internal.Execution
             if (Test is IDisposableFixture && Test.TypeInfo is not null && DisposeHelper.IsDisposable(Test.TypeInfo.Type) && !Test.HasLifeCycle(LifeCycle.InstancePerTestCase))
                 command = new DisposeFixtureCommand(command);
 
+            foreach (TypeHierarchySetUpTearDownItem item in hierarchySetUpTearDownItems)
+                command = new OneTimeHierarchyTearDownCommand(command, item);
+
             return command;
+        }
+
+        private static void SplitOneTimeMethodsByScope(
+            IMethodInfo[] methods,
+            bool isSetUp,
+            out IMethodInfo[] fixtureMethods,
+            out IMethodInfo[] hierarchyMethods)
+        {
+            var fixtureList = new List<IMethodInfo>();
+            var hierarchyList = new List<IMethodInfo>();
+
+            foreach (var method in methods)
+            {
+                var scope = GetOneTimeScope(method, isSetUp);
+                if (scope == OneTimeScope.TypeHierarchy)
+                    hierarchyList.Add(method);
+                else
+                    fixtureList.Add(method);
+            }
+
+            fixtureMethods = fixtureList.ToArray();
+            hierarchyMethods = hierarchyList.ToArray();
+        }
+
+        private static OneTimeScope GetOneTimeScope(IMethodInfo method, bool isSetUp)
+        {
+            var attributeType = isSetUp ? typeof(OneTimeSetUpAttribute) : typeof(OneTimeTearDownAttribute);
+            var attributes = method.MethodInfo.GetCustomAttributes(attributeType, inherit: true);
+
+            foreach (var attribute in attributes)
+            {
+                if (attribute is OneTimeSetUpAttribute setUpAttribute)
+                    return setUpAttribute.Scope;
+
+                if (attribute is OneTimeTearDownAttribute tearDownAttribute)
+                    return tearDownAttribute.Scope;
+            }
+
+            return OneTimeScope.Fixture;
         }
 
         private void PerformOneTimeSetUp()

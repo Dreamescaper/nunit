@@ -11,5 +11,9 @@ namespace NUnit.Framework
     [AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = true)]
     public class OneTimeTearDownAttribute : NUnitAttribute
     {
+        /// <summary>
+        /// Gets or sets the execution scope for the method.
+        /// </summary>
+        public OneTimeScope Scope { get; set; } = OneTimeScope.Fixture;
     }
 }

@@ -89,6 +89,33 @@ namespace NUnit.Framework.Tests.Attributes
         }
 
         [Test]
+        public void TypeHierarchyScopeRunsOnceAcrossDerivedFixtures()
+        {
+            TypeHierarchyScopeBase.Reset();
+
+            var suite = TestBuilder.MakeSuite("TypeHierarchyScopeSuite");
+            suite.Add(TestBuilder.MakeFixture(typeof(TypeHierarchyScopeChildOne)));
+            suite.Add(TestBuilder.MakeFixture(typeof(TypeHierarchyScopeChildTwo)));
+
+            ITestResult result = TestBuilder.RunTest(suite);
+
+            Assert.That(result.ResultState.Status, Is.EqualTo(TestStatus.Passed));
+            Assert.That(TypeHierarchyScopeBase.HierarchySetUpCount, Is.EqualTo(1));
+            Assert.That(TypeHierarchyScopeBase.HierarchyTearDownCount, Is.EqualTo(1));
+            Assert.That(TypeHierarchyScopeBase.FixtureSetUpCount, Is.EqualTo(2));
+            Assert.That(TypeHierarchyScopeBase.FixtureTearDownCount, Is.EqualTo(2));
+        }
+
+        [Test]
+        public void TypeHierarchyScopeRequiresStaticMethods()
+        {
+            ITestResult result = TestBuilder.RunTestFixture(typeof(InvalidTypeHierarchyScopeFixture));
+
+            Assert.That(result.ResultState.Status, Is.EqualTo(TestStatus.Failed));
+            Assert.That(result.ResultState.Site, Is.EqualTo(FailureSite.SetUp));
+        }
+
+        [Test]
         public void OverriddenSetUpAndTearDownAreNotCalled()
         {
             OverrideSetUpAndTearDown fixture = new OverrideSetUpAndTearDown();

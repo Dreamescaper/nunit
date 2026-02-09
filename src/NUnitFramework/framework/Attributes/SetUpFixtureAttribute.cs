@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 
 namespace NUnit.Framework
 {
@@ -75,7 +76,35 @@ namespace NUnit.Framework
                 }
             }
 
+            if (HasTypeHierarchyScopedOneTimeMethods(typeInfo.Type))
+            {
+                reason = "OneTimeSetUp and OneTimeTearDown with Scope=TypeHierarchy are not allowed in a SetUpFixture";
+                return false;
+            }
+
             return true;
+        }
+
+        private static bool HasTypeHierarchyScopedOneTimeMethods(Type type)
+        {
+            var methods = type.GetMethods(Reflect.AllMembers | BindingFlags.FlattenHierarchy);
+
+            foreach (var method in methods)
+            {
+                foreach (var attribute in method.GetCustomAttributes(typeof(OneTimeSetUpAttribute), inherit: true))
+                {
+                    if (attribute is OneTimeSetUpAttribute setUpAttribute && setUpAttribute.Scope == OneTimeScope.TypeHierarchy)
+                        return true;
+                }
+
+                foreach (var attribute in method.GetCustomAttributes(typeof(OneTimeTearDownAttribute), inherit: true))
+                {
+                    if (attribute is OneTimeTearDownAttribute tearDownAttribute && tearDownAttribute.Scope == OneTimeScope.TypeHierarchy)
+                        return true;
+                }
+            }
+
+            return false;
         }
 
         #endregion
